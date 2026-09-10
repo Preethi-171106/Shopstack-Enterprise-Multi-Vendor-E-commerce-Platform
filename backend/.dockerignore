@@ -1,0 +1,8 @@
+target/
+*.log
+logs/
+.env
+.env.local
+application-local.properties
+.git
+.gitignore

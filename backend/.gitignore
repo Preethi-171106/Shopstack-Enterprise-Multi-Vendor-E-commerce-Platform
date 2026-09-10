@@ -1,0 +1,36 @@
+# ============================================================
+# ShopStack Backend — .gitignore
+# ============================================================
+
+# Maven build output
+target/
+*.class
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+logs/
+
+# Environment / Secrets — NEVER commit these
+.env
+.env.local
+.env.production
+application-local.properties
+application-secret.properties
+secrets.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Maven wrapper (optional — include if using mvnw)
+# !.mvn/wrapper/maven-wrapper.jar

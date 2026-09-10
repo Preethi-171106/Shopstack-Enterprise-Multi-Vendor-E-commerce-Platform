@@ -1,0 +1,33 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Local Maven/tools
+maven-temp/
+apache-maven-*/
+*.zip
+
+# Temporary files
+*.log
+mvn-search.txt
+
+# OS files
+desktop.ini
+Thumbs.db
