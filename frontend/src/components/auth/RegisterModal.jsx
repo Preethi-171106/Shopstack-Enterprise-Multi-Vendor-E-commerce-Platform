@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Mail, Lock, User, Phone, UserPlus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Mail, Lock, User, Phone, UserPlus, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import Input from '../common/Input';
@@ -18,7 +18,20 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let timer;
+    if (loading) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3000);
+    } else {
+      setIsWakingUp(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   if (!isOpen) return null;
 
@@ -77,8 +90,8 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium">
-            {error}
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium space-y-1">
+            <p>{error}</p>
           </div>
         )}
 
@@ -150,8 +163,15 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
             disabled={loading}
             icon={UserPlus}
           >
-            {loading ? 'Creating Account...' : 'Register'}
+            {loading ? (isWakingUp ? 'Connecting to Server...' : 'Creating Account...') : 'Register'}
           </Button>
+
+          {loading && isWakingUp && (
+            <div className="flex items-center justify-center gap-2 text-[11px] text-amber-400/90 text-center animate-pulse pt-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Free-tier cloud backend is starting up. Please wait...</span>
+            </div>
+          )}
         </form>
 
         {/* Footer Toggle */}

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import Button from '../components/common/Button';
@@ -15,7 +15,20 @@ const Login = () => {
   const [password, setPassword]       = useState('');
   const [showPassword, setShowPassword] = useState(false); // hidden by default
   const [loading, setLoading]         = useState(false);
+  const [isWakingUp, setIsWakingUp]   = useState(false);
   const [error, setError]             = useState('');
+
+  useEffect(() => {
+    let timer;
+    if (loading) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3000);
+    } else {
+      setIsWakingUp(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,8 +161,15 @@ const Login = () => {
             disabled={loading}
             icon={LogIn}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (isWakingUp ? 'Connecting to Server...' : 'Signing in...') : 'Sign In'}
           </Button>
+
+          {loading && isWakingUp && (
+            <div className="flex items-center justify-center gap-2 text-[11px] text-amber-400/90 text-center animate-pulse pt-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Free-tier cloud backend is starting up. Please wait...</span>
+            </div>
+          )}
         </form>
 
         <div className="text-center pt-2 text-xs text-slate-400 border-t border-slate-800 space-y-2">

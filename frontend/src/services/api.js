@@ -6,19 +6,19 @@ import axios from "axios";
  * Base URL resolution order:
  *   1. VITE_API_BASE_URL environment variable (set in .env.development or .env.production)
  *   2. http://localhost:8080/api  — Vite dev server fallback
- *   3. /api                      — Production (served via Nginx reverse proxy)
+ *   3. https://shopstack-enterprise-multi-vendor-e.onrender.com/api — Cloud production fallback
  */
 const apiBaseUrl =
     import.meta.env.VITE_API_BASE_URL ||
-    (import.meta.env.DEV ? "http://localhost:8080/api" : "/api");
+    (import.meta.env.DEV ? "http://localhost:8080/api" : "https://shopstack-enterprise-multi-vendor-e.onrender.com/api");
 
 const api = axios.create({
     baseURL: apiBaseUrl,
     headers: {
         "Content-Type": "application/json",
     },
-    // Timeout after 15 seconds so users see a clear error instead of spinning forever
-    timeout: 15000,
+    // 90-second timeout to accommodate free-tier cloud hosting cold starts (Render/Railway)
+    timeout: 90000,
 });
 
 // ── Request Interceptor: Attach JWT Bearer token if present ──────────────────
@@ -33,10 +33,28 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// ── Response Interceptor: Normalize error messages ───────────────────────────
+// ── Response Interceptor: Auto-Retry on Cold-Start / Network Glitches & Normalize error messages
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+        const config = error.config;
+
+        // Auto-retry on cold-start timeouts (ECONNABORTED), Network errors, or 502/503/504 Gateway errors
+        const isNetworkOrTimeout = !error.response && (error.code === "ECONNABORTED" || error.message?.toLowerCase().includes("network") || error.code === "ERR_NETWORK");
+        const isServerError = error.response && [502, 503, 504].includes(error.response.status);
+
+        if (config && !config._skipRetry && (isNetworkOrTimeout || isServerError)) {
+            config._retryCount = config._retryCount || 0;
+            const maxRetries = 2;
+
+            if (config._retryCount < maxRetries) {
+                config._retryCount += 1;
+                const delayMs = config._retryCount * 2000;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+                return api(config);
+            }
+        }
+
         // 401: clear stale token so the user is redirected to login
         if (error.response?.status === 401) {
             const token = localStorage.getItem("shopstack_token");
@@ -50,13 +68,13 @@ api.interceptors.response.use(
         let userMessage;
 
         if (!error.response) {
-            // No response at all — backend is unreachable
+            // No response at all — backend is unreachable or timed out
             if (error.code === "ECONNABORTED") {
-                userMessage = "Request timed out. The server is taking too long to respond. Please try again.";
-            } else if (error.message?.toLowerCase().includes("network")) {
+                userMessage = "The cloud server is taking longer than expected to respond (waking up from sleep mode). Please try again in a moment.";
+            } else if (error.message?.toLowerCase().includes("network") || error.code === "ERR_NETWORK") {
                 userMessage =
-                    "Unable to connect to the server. " +
-                    "Please make sure the backend is running on port 8080 (http://localhost:8080).";
+                    "Unable to connect to the backend server. " +
+                    "The cloud instance may be waking up. Please try again in a few seconds.";
             } else {
                 userMessage = "A network error occurred. Please check your connection and try again.";
             }
@@ -87,6 +105,8 @@ api.interceptors.response.use(
             } else if (status === 409) {
                 // Duplicate resource (e.g., email already registered)
                 userMessage = backendMessage || "This resource already exists. Please use a different value.";
+            } else if (status === 502 || status === 503 || status === 504) {
+                userMessage = "Cloud server is currently starting up. Please try again in a few moments.";
             } else if (status >= 500) {
                 userMessage =
                     backendMessage ||
