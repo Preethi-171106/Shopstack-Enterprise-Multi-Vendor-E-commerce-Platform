@@ -318,46 +318,31 @@ const Checkout = () => {
             paymentMethod: pMethod
           });
         } catch (createErr) {
-          console.warn('Direct gateway creation notice:', createErr);
-          // Auto-verify mock payment fallback so user flow never breaks
-          try {
-            await paymentService.verifyPayment({
-              orderId: backendOrder.id,
-              razorpayOrderId: `order_rzp_demo_${Date.now()}`,
-              razorpayPaymentId: `pay_demo_${Date.now()}`,
-              razorpaySignature: 'sig_demo_auto_verified'
-            });
-          } catch (vErr) {
-            console.warn('Auto verification fallback notice:', vErr);
-          }
-          showNotification('Payment confirmed successfully!', 'success');
+          console.error('Payment creation error:', createErr);
+          const errorMsg = createErr.userMessage || createErr.response?.data?.message || 'Payment processing failed. Please try again.';
+          showNotification(errorMsg, 'error');
+          setIsPlacing(false);
+          return;
+        }
+
+        // Check for Demo Payment Mode (or pre-verified success)
+        const isDemoPayment =
+          payResp?.status === 'SUCCESS' ||
+          payResp?.razorpayKeyId === 'demo_mode' ||
+          !payResp?.razorpayKeyId ||
+          payResp?.razorpayKeyId === 'rzp_test_placeholder' ||
+          payResp?.razorpayKeyId === 'rzp_test_mockkeyid' ||
+          payResp?.gatewayOrderId?.startsWith('order_demo_') ||
+          payResp?.gatewayOrderId?.startsWith('order_rzp_demo_') ||
+          payResp?.gatewayOrderId?.startsWith('order_rzp_mock_');
+
+        if (isDemoPayment) {
+          showNotification('Demo Mode: Order placed successfully (Simulated Payment).', 'success');
           completeOrderSuccess(orderData);
           return;
         }
 
-        // If gatewayOrderId is a demo order or keys are sandbox placeholders
-        const isMockGateway = !payResp?.gatewayOrderId ||
-          payResp.gatewayOrderId.startsWith('order_rzp_mock_') ||
-          payResp.gatewayOrderId.startsWith('order_rzp_demo_') ||
-          payResp.razorpayKeyId === 'rzp_test_mockkeyid' ||
-          payResp.razorpayKeyId === 'rzp_test_placeholder';
-
-        if (isMockGateway) {
-          try {
-            await paymentService.verifyPayment({
-              orderId: backendOrder.id,
-              razorpayOrderId: payResp.gatewayOrderId || `order_rzp_demo_${Date.now()}`,
-              razorpayPaymentId: `pay_demo_${Date.now()}`,
-              razorpaySignature: 'sig_demo_verified'
-            });
-          } catch (vErr) {
-            console.warn('Mock verify notice:', vErr);
-          }
-          showNotification('Payment verified successfully!', 'success');
-          completeOrderSuccess(orderData);
-          return;
-        }
-
+        // Mode A: Real Razorpay Mode
         const loadScript = (src) =>
           new Promise((resolve) => {
             const script = document.createElement('script');
@@ -369,17 +354,8 @@ const Checkout = () => {
 
         const ok = await loadScript('https://checkout.razorpay.com/v1/checkout.js');
         if (!ok || !window.Razorpay) {
-          // If script cannot load (e.g. offline/restricted), complete gracefully
-          try {
-            await paymentService.verifyPayment({
-              orderId: backendOrder.id,
-              razorpayOrderId: payResp.gatewayOrderId,
-              razorpayPaymentId: `pay_local_${Date.now()}`,
-              razorpaySignature: 'sig_fallback_verified'
-            });
-          } catch (ignored) {}
-          showNotification('Payment processed successfully.', 'success');
-          completeOrderSuccess(orderData);
+          showNotification('Payment gateway is currently unreachable. Please try Cash on Delivery or retry in a few moments.', 'error');
+          setIsPlacing(false);
           return;
         }
 
@@ -439,23 +415,10 @@ const Checkout = () => {
         return;
       } catch (payErr) {
         console.error('Payment flow error:', payErr);
-        // Resilient fallback: ensure user can always complete checkout
-        try {
-          await paymentService.verifyPayment({
-            orderId: backendOrder.id,
-            razorpayOrderId: `order_rzp_demo_${Date.now()}`,
-            razorpayPaymentId: `pay_demo_${Date.now()}`,
-            razorpaySignature: 'sig_demo_fallback'
-          });
-          showNotification('Payment processed successfully.', 'success');
-          completeOrderSuccess(orderData);
-          return;
-        } catch (fbErr) {
-          const userMsg = payErr.userMessage || payErr.response?.data?.message || payErr.message || 'Payment processing failed. Please try again.';
-          showNotification(userMsg, 'error');
-          setIsPlacing(false);
-          return;
-        }
+        const userMsg = payErr.userMessage || payErr.response?.data?.message || payErr.message || 'Payment processing failed. Please try again.';
+        showNotification(userMsg, 'error');
+        setIsPlacing(false);
+        return;
       }
     }
 

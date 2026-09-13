@@ -11,6 +11,7 @@ import com.shopstack.dto.payment.PaymentVerifyRequest;
 import com.shopstack.entity.OrderStatus;
 import com.shopstack.entity.Payment;
 import com.shopstack.entity.PaymentGateway;
+import com.shopstack.entity.PaymentMethod;
 import com.shopstack.entity.PaymentStatus;
 import com.shopstack.entity.User;
 import com.shopstack.exception.DuplicatePaymentException;
@@ -115,23 +116,48 @@ public class PaymentServiceImpl implements PaymentService {
                 .multiply(BigDecimal.valueOf(100))
                 .longValue();
 
-        // 5. Ensure Razorpay is configured with real non-placeholder credentials
-        String cleanKeyId = razorpayKeyId != null ? razorpayKeyId.trim().replace("\"", "").replace("'", "") : "";
-        String cleanKeySecret = razorpayKeySecret != null ? razorpayKeySecret.trim().replace("\"", "").replace("'", "") : "";
+        // 5. Handle Demo Payment Mode when Razorpay credentials are not configured
+        if (!isRazorpayConfigured()) {
+            log.info("[PaymentServiceImpl] Razorpay credentials not configured. Executing simulated/demo payment for order ID: {}", orderId);
+            String internalPaymentId = "PAY-DEMO-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+            String demoGatewayOrderId = "order_demo_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+            String demoGatewayTxId = "pay_demo_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
 
-        if (cleanKeyId.isEmpty() || cleanKeySecret.isEmpty()
-                || "rzp_test_placeholder".equalsIgnoreCase(cleanKeyId)
-                || "rzp_test_mockkeyid".equalsIgnoreCase(cleanKeyId)
-                || "mocksecret123456789".equalsIgnoreCase(cleanKeySecret)
-                || "placeholder_secret".equalsIgnoreCase(cleanKeySecret)
-                || "your_razorpay_key_secret_here".equalsIgnoreCase(cleanKeySecret)) {
-            log.warn("Attempt to create Razorpay order when Razorpay keys are not configured or are placeholder values");
-            throw new RazorpayNotConfiguredException(
-                    "Razorpay payment is not configured. Please set the RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET environment variables."
-            );
+            if (payment == null) {
+                payment = Payment.builder()
+                        .order(order)
+                        .paymentId(internalPaymentId)
+                        .gatewayOrderId(demoGatewayOrderId)
+                        .gatewayTransactionId(demoGatewayTxId)
+                        .amount(order.getTotalAmount())
+                        .currency(currency)
+                        .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.CARD)
+                        .gateway(PaymentGateway.RAZORPAY)
+                        .status(PaymentStatus.SUCCESS)
+                        .build();
+            } else {
+                payment.setGatewayOrderId(demoGatewayOrderId);
+                payment.setGatewayTransactionId(demoGatewayTxId);
+                payment.setAmount(order.getTotalAmount());
+                payment.setCurrency(currency);
+                payment.setPaymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.CARD);
+                payment.setStatus(PaymentStatus.SUCCESS);
+                payment.setFailureReason(null);
+            }
+
+            order.setOrderStatus(OrderStatus.PROCESSING);
+            orderRepository.save(order);
+            Payment saved = paymentRepository.save(payment);
+            log.info("[PaymentServiceImpl] Demo payment successfully saved with status SUCCESS: {} for order: {}", saved.getPaymentId(), orderId);
+
+            com.shopstack.dto.payment.PaymentResponse response = paymentMapper.toPaymentResponse(saved);
+            response.setRazorpayKeyId("demo_mode");
+            response.setAmountInPaise(amountInPaise);
+            return response;
         }
 
-        // 6. Create Razorpay Order
+        // 6. MODE A: Real Razorpay Mode — Create Razorpay Order
+        String cleanKeyId = razorpayKeyId != null ? razorpayKeyId.trim().replace("\"", "").replace("'", "") : "";
         JSONObject razorpayOrderRequest = new JSONObject();
         razorpayOrderRequest.put("amount", amountInPaise);
         razorpayOrderRequest.put("currency", currency);
@@ -164,7 +190,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .gatewayOrderId(gatewayOrderId)
                     .amount(order.getTotalAmount())
                     .currency(currency)
-                    .paymentMethod(request.getPaymentMethod())
+                    .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.CARD)
                     .gateway(PaymentGateway.RAZORPAY)
                     .status(PaymentStatus.CREATED)
                     .build();
@@ -172,7 +198,7 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setGatewayOrderId(gatewayOrderId);
             payment.setAmount(order.getTotalAmount());
             payment.setCurrency(currency);
-            payment.setPaymentMethod(request.getPaymentMethod());
+            payment.setPaymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.CARD);
             payment.setStatus(PaymentStatus.CREATED);
             payment.setFailureReason(null);
         }
@@ -210,7 +236,24 @@ public class PaymentServiceImpl implements PaymentService {
             return paymentMapper.toPaymentResponse(payment);
         }
 
-        // 3. Verify Razorpay HMAC-SHA256 signature
+        // 3. In Demo Mode (unconfigured Razorpay), safely confirm demo payment
+        if (!isRazorpayConfigured()) {
+            payment.setGatewayTransactionId(request.getRazorpayPaymentId() != null
+                    ? request.getRazorpayPaymentId()
+                    : ("pay_demo_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10)));
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setFailureReason(null);
+
+            com.shopstack.entity.Order order = payment.getOrder();
+            order.setOrderStatus(OrderStatus.PROCESSING);
+            orderRepository.save(order);
+
+            Payment updated = paymentRepository.save(payment);
+            log.info("Demo payment verified successfully for order: {}", request.getOrderId());
+            return paymentMapper.toPaymentResponse(updated);
+        }
+
+        // 4. In Real Razorpay Mode: Strictly verify HMAC-SHA256 signature
         String cleanSecret = razorpayKeySecret != null ? razorpayKeySecret.trim().replace("\"", "").replace("'", "") : "";
         if (cleanSecret.isEmpty() || "placeholder_secret".equalsIgnoreCase(cleanSecret)
                 || "mocksecret123456789".equalsIgnoreCase(cleanSecret)
@@ -231,7 +274,7 @@ public class PaymentServiceImpl implements PaymentService {
             signatureValid = false;
         }
 
-        // 4. Update payment and order status based on signature result
+        // 5. Update payment and order status based on signature result
         com.shopstack.entity.Order order = payment.getOrder();
         if (signatureValid) {
             payment.setGatewayTransactionId(request.getRazorpayPaymentId());
@@ -293,12 +336,6 @@ public class PaymentServiceImpl implements PaymentService {
                     "Refund is only allowed for payments with SUCCESS status. Current status: " + payment.getStatus());
         }
 
-        // 4. Ensure Razorpay is configured
-        String cleanRefundSecret = razorpayKeySecret != null ? razorpayKeySecret.trim().replace("\"", "").replace("'", "") : "";
-        if (cleanRefundSecret.isEmpty() || "placeholder_secret".equalsIgnoreCase(cleanRefundSecret)) {
-            throw new com.shopstack.exception.RazorpayNotConfiguredException("Razorpay payment is not configured.");
-        }
-
         // Determine refund amount (full refund by default if not specified)
         BigDecimal refundAmount = (request != null && request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0)
                 ? request.getAmount()
@@ -311,10 +348,10 @@ public class PaymentServiceImpl implements PaymentService {
 
         String reason = request != null ? request.getReason() : null;
 
-        // 5. Process refund via RefundService which calls Razorpay and records Refund entity
+        // 4. Process refund via RefundService (handles both real gateway and demo mode)
         com.shopstack.entity.Refund refund = refundService.processGatewayRefund(payment, refundAmount, reason);
 
-        // 6. Update payment and order depending on refund result
+        // 5. Update payment and order depending on refund result
         if (refund.getStatus() == com.shopstack.entity.RefundStatus.SUCCESS) {
             payment.setStatus(PaymentStatus.REFUNDED);
             payment.setFailureReason(reason != null ? "Refund reason: " + reason : null);
@@ -364,6 +401,21 @@ public class PaymentServiceImpl implements PaymentService {
     // ─────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Checks if real non-placeholder Razorpay credentials are configured.
+     */
+    private boolean isRazorpayConfigured() {
+        String cleanKeyId = razorpayKeyId != null ? razorpayKeyId.trim().replace("\"", "").replace("'", "") : "";
+        String cleanKeySecret = razorpayKeySecret != null ? razorpayKeySecret.trim().replace("\"", "").replace("'", "") : "";
+
+        return !cleanKeyId.isEmpty() && !cleanKeySecret.isEmpty()
+                && !"rzp_test_placeholder".equalsIgnoreCase(cleanKeyId)
+                && !"rzp_test_mockkeyid".equalsIgnoreCase(cleanKeyId)
+                && !"placeholder_secret".equalsIgnoreCase(cleanKeySecret)
+                && !"mocksecret123456789".equalsIgnoreCase(cleanKeySecret)
+                && !"your_razorpay_key_secret_here".equalsIgnoreCase(cleanKeySecret);
+    }
 
     /**
      * Resolves the currently authenticated user from the Spring Security context.

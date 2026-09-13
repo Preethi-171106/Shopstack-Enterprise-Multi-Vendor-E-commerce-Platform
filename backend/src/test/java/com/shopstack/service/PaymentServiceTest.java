@@ -193,18 +193,32 @@ class PaymentServiceTest {
         }
 
         @Test
-        @DisplayName("Should throw RazorpayNotConfiguredException when Razorpay keys are missing")
-        void shouldThrowWhenRazorpayNotConfigured() {
+        @DisplayName("Should create demo payment with SUCCESS status and update order to PROCESSING when Razorpay keys are missing")
+        void shouldCreateDemoPaymentWhenRazorpayNotConfigured() {
             authenticateAs(customerUser, "ROLE_CUSTOMER");
             org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "razorpayKeyId", "");
+            org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "razorpayKeySecret", "");
             when(orderRepository.findById(10L)).thenReturn(Optional.of(sampleOrder));
             when(userRepository.findByEmailIgnoreCase("customer@shopstack.com"))
                     .thenReturn(Optional.of(customerUser));
+            when(paymentRepository.findByOrderId(10L)).thenReturn(Optional.empty());
+            when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> {
+                Payment p = inv.getArgument(0);
+                p.setId(105L);
+                return p;
+            });
+            when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            assertThatThrownBy(() ->
-                    paymentService.createPayment(10L, PaymentCreateRequest.builder()
-                            .paymentMethod(PaymentMethod.UPI).build()))
-                    .isInstanceOf(com.shopstack.exception.RazorpayNotConfiguredException.class);
+            PaymentResponse response = paymentService.createPayment(10L, PaymentCreateRequest.builder()
+                    .paymentMethod(PaymentMethod.UPI).build());
+
+            assertThat(response).isNotNull();
+            assertThat(response.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+            assertThat(response.getGatewayOrderId()).startsWith("order_demo_");
+            assertThat(response.getRazorpayKeyId()).isEqualTo("demo_mode");
+            assertThat(sampleOrder.getOrderStatus()).isEqualTo(OrderStatus.PROCESSING);
+            verify(paymentRepository).save(any(Payment.class));
+            verify(orderRepository).save(sampleOrder);
         }
 
         @Test
