@@ -384,7 +384,17 @@ public class CouponServiceImpl implements CouponService {
             }
         }
 
-        return applicableList;
+        // Sort by estimated discount descending (highest savings first), then minimum order amount descending
+        applicableList.sort((a, b) -> {
+            int cmp = b.getEstimatedDiscount().compareTo(a.getEstimatedDiscount());
+            if (cmp != 0) return cmp;
+            BigDecimal minA = a.getMinimumOrderAmount() != null ? a.getMinimumOrderAmount() : BigDecimal.ZERO;
+            BigDecimal minB = b.getMinimumOrderAmount() != null ? b.getMinimumOrderAmount() : BigDecimal.ZERO;
+            return minB.compareTo(minA);
+        });
+
+        // Exactly one coupon available based on the ordered amount
+        return applicableList.stream().limit(1).collect(Collectors.toList());
     }
 
     @Override
