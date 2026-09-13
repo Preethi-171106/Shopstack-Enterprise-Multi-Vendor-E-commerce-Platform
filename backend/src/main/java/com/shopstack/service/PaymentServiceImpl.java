@@ -412,8 +412,10 @@ public class PaymentServiceImpl implements PaymentService {
         return !cleanKeyId.isEmpty() && !cleanKeySecret.isEmpty()
                 && !"rzp_test_placeholder".equalsIgnoreCase(cleanKeyId)
                 && !"rzp_test_mockkeyid".equalsIgnoreCase(cleanKeyId)
+                && !"rzp_test_TS35GdsaFxZz38".equalsIgnoreCase(cleanKeyId)
                 && !"placeholder_secret".equalsIgnoreCase(cleanKeySecret)
                 && !"mocksecret123456789".equalsIgnoreCase(cleanKeySecret)
+                && !"mM5puPr6wUcwo6smjre30VRh".equalsIgnoreCase(cleanKeySecret)
                 && !"your_razorpay_key_secret_here".equalsIgnoreCase(cleanKeySecret);
     }
 
