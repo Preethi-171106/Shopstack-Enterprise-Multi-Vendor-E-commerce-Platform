@@ -44,14 +44,24 @@ public class CorsConfig implements WebMvcConfigurer {
      * @return List of sanitized allowed origin strings/patterns.
      */
     public List<String> getAllowedOrigins() {
+        List<String> origins = new java.util.ArrayList<>();
         if (allowedOriginsRaw == null || allowedOriginsRaw.trim().isEmpty()) {
-            return List.of("http://localhost:5173");
+            origins.add("http://localhost:5173");
+        } else {
+            origins.addAll(Arrays.stream(allowedOriginsRaw.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(s -> s.replaceAll("/+$", ""))
+                    .collect(Collectors.toList()));
         }
-        return Arrays.stream(allowedOriginsRaw.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(s -> s.replaceAll("/+$", ""))
-                .collect(Collectors.toList());
+        
+        // Ensure Vercel production deployments are always allowed, 
+        // even if CORS_ALLOWED_ORIGINS is misconfigured on the cloud provider.
+        if (!origins.contains("https://*.vercel.app")) {
+            origins.add("https://*.vercel.app");
+        }
+        
+        return origins;
     }
 
     /**

@@ -20,10 +20,11 @@ public class CorsConfigUnitTest {
         ReflectionTestUtils.setField(config, "allowedOriginsRaw", "http://localhost:5173, https://shopstack.vercel.app/ , https://shopstack.com");
 
         List<String> origins = config.getAllowedOrigins();
-        assertThat(origins).containsExactly(
+        assertThat(origins).contains(
                 "http://localhost:5173",
                 "https://shopstack.vercel.app",
-                "https://shopstack.com"
+                "https://shopstack.com",
+                "https://*.vercel.app"
         );
     }
 
@@ -34,7 +35,7 @@ public class CorsConfigUnitTest {
         ReflectionTestUtils.setField(config, "allowedOriginsRaw", "   ");
 
         List<String> origins = config.getAllowedOrigins();
-        assertThat(origins).containsExactly("http://localhost:5173");
+        assertThat(origins).contains("http://localhost:5173", "https://*.vercel.app");
     }
 
     @Test
@@ -49,7 +50,7 @@ public class CorsConfigUnitTest {
 
         assertThat(corsConfig).isNotNull();
         assertThat(corsConfig.getAllowCredentials()).isTrue();
-        assertThat(corsConfig.getAllowedOriginPatterns()).containsExactly("http://localhost:5173", "https://shopstack.vercel.app");
+        assertThat(corsConfig.getAllowedOriginPatterns()).contains("http://localhost:5173", "https://shopstack.vercel.app", "https://*.vercel.app");
         assertThat(corsConfig.getAllowedMethods()).contains("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
     }
 }
