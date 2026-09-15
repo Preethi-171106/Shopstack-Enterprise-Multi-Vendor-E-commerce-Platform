@@ -25,18 +25,34 @@ const Home = () => {
   useEffect(() => {
     const loadHomeData = async () => {
       setLoading(true);
-      try {
-        const [catData, prodData] = await Promise.all([
-          categoryService.getCategories(),
-          productService.getProducts({ size: 20 }),
-        ]);
-        setCategories(catData || []);
-        setProducts(prodData.content || []);
-      } catch (err) {
-        console.error('Home data load error:', err);
-      } finally {
-        setLoading(false);
+
+      // Use allSettled so a cold-start timeout / error on one endpoint
+      // does NOT prevent the other from rendering.
+      const [catResult, prodResult] = await Promise.allSettled([
+        categoryService.getCategories(),
+        productService.getProducts({ size: 20 }),
+      ]);
+
+      if (catResult.status === 'fulfilled') {
+        setCategories(Array.isArray(catResult.value) ? catResult.value : []);
+      } else {
+        console.error('[Home] categoryService.getCategories failed:', catResult.reason);
+        setCategories([]);
       }
+
+      if (prodResult.status === 'fulfilled') {
+        const prodData = prodResult.value;
+        // productService returns { content: [...], totalElements, ... }
+        const items =
+          (prodData && Array.isArray(prodData.content) ? prodData.content : null) ||
+          (Array.isArray(prodData) ? prodData : []);
+        setProducts(items);
+      } else {
+        console.error('[Home] productService.getProducts failed:', prodResult.reason);
+        setProducts([]);
+      }
+
+      setLoading(false);
     };
 
     loadHomeData();
