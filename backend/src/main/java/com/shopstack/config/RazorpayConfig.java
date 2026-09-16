@@ -53,18 +53,16 @@ public class RazorpayConfig {
      */
     @Bean
     public RazorpayClient razorpayClient() {
-        String cleanKeyId = keyId != null ? keyId.trim().replace("\"", "").replace("'", "") : "";
-        String cleanKeySecret = keySecret != null ? keySecret.trim().replace("\"", "").replace("'", "") : "";
+        String cleanKeyId = keyId != null ? keyId.trim().replaceAll("[\"'\r\n]", "") : "";
+        String cleanKeySecret = keySecret != null ? keySecret.trim().replaceAll("[\"'\r\n]", "") : "";
 
         boolean isKeyConfigured = !cleanKeyId.isEmpty()
                 && !PLACEHOLDER_KEY_ID.equalsIgnoreCase(cleanKeyId)
-                && !"rzp_test_placeholder".equalsIgnoreCase(cleanKeyId)
-                && !"rzp_test_TS35GdsaFxZz38".equalsIgnoreCase(cleanKeyId);
+                && !"rzp_test_placeholder".equalsIgnoreCase(cleanKeyId);
 
         boolean isSecretConfigured = !cleanKeySecret.isEmpty()
                 && !"placeholder_secret".equalsIgnoreCase(cleanKeySecret)
                 && !"mocksecret123456789".equalsIgnoreCase(cleanKeySecret)
-                && !"mM5puPr6wUcwo6smjre30VRh".equalsIgnoreCase(cleanKeySecret)
                 && !"your_razorpay_key_secret_here".equalsIgnoreCase(cleanKeySecret);
 
         String keyType = cleanKeyId.startsWith("rzp_test_") ? "TEST"

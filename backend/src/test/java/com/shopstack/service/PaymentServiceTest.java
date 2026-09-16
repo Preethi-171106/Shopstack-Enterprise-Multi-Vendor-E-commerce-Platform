@@ -346,6 +346,34 @@ class PaymentServiceTest {
     class VerifyPaymentTests {
 
         @Test
+        @DisplayName("Should mark payment as SUCCESS when signature is valid")
+        void shouldMarkSuccessOnValidSignature() throws Exception {
+            authenticateAs(customerUser, "ROLE_CUSTOMER");
+            when(paymentRepository.findByOrderId(10L)).thenReturn(Optional.of(samplePayment));
+            when(userRepository.findByEmailIgnoreCase("customer@shopstack.com"))
+                    .thenReturn(Optional.of(customerUser));
+            when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            String validSignature = com.razorpay.Utils.getHash("order_razorpay123|pay_razorpay456", "testsecret123456789");
+
+            PaymentVerifyRequest request = PaymentVerifyRequest.builder()
+                    .orderId(10L)
+                    .razorpayOrderId("order_razorpay123")
+                    .razorpayPaymentId("pay_razorpay456")
+                    .razorpaySignature(validSignature)
+                    .build();
+
+            PaymentResponse response = paymentService.verifyPayment(request);
+
+            assertThat(response.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+            assertThat(response.getGatewayTransactionId()).isEqualTo("pay_razorpay456");
+            assertThat(sampleOrder.getOrderStatus()).isEqualTo(OrderStatus.PROCESSING);
+            verify(paymentRepository).save(samplePayment);
+            verify(orderRepository).save(sampleOrder);
+        }
+
+        @Test
         @DisplayName("Should mark payment as FAILED when signature is invalid")
         void shouldMarkFailedOnInvalidSignature() {
             authenticateAs(customerUser, "ROLE_CUSTOMER");
