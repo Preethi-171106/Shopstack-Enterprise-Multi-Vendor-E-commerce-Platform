@@ -338,12 +338,28 @@ public class DatabaseSeeder implements ApplicationRunner {
     // -------------------------------------------------------------------------
 
     private void seedProductsAndInventories() {
-        Optional<VendorProfile> techVendor = vendorProfileRepository.findByUserEmailIgnoreCase("vendor@shopstack.com");
+        VendorProfile defaultVendor = vendorProfileRepository.findByUserEmailIgnoreCase("vendor@shopstack.com")
+                .or(() -> vendorProfileRepository.findAll().stream().findFirst())
+                .orElseGet(() -> {
+                    User user = seedUserIfAbsent("vendor@shopstack.com", "Vendor@123", "Aura", "Technologies", UserRole.VENDOR, "+91-9888877777");
+                    return vendorProfileRepository.save(VendorProfile.builder()
+                            .user(user)
+                            .storeName("Aura Tech Solutions")
+                            .storeDescription("Premium consumer electronics, audio gear, and high-performance gadgets.")
+                            .businessEmail("vendor@shopstack.com")
+                            .businessPhone("+91-9888877777")
+                            .businessAddress("100 Innovation Boulevard")
+                            .city("Bangalore")
+                            .state("Karnataka")
+                            .country("India")
+                            .postalCode("560001")
+                            .status(VendorStatus.APPROVED)
+                            .build());
+                });
+
         Optional<VendorProfile> fashionVendor = vendorProfileRepository.findByUserEmailIgnoreCase("fashionvendor@shopstack.com");
         Optional<VendorProfile> homeVendor = vendorProfileRepository.findByUserEmailIgnoreCase("homevendor@shopstack.com");
         Optional<VendorProfile> sportsVendor = vendorProfileRepository.findByUserEmailIgnoreCase("sportsvendor@shopstack.com");
-
-        if (techVendor.isEmpty()) return;
 
         Warehouse blr = warehouseRepository.findByWarehouseCodeIgnoreCase("WH-BLR-01").orElse(null);
         Warehouse bom = warehouseRepository.findByWarehouseCodeIgnoreCase("WH-BOM-01").orElse(null);
@@ -360,7 +376,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 50,
                 "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
                 "audio",
-                techVendor.get(),
+                defaultVendor,
                 true
             ),
             new ProductSeed(
@@ -373,7 +389,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 60,
                 "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80",
                 "smart-watches",
-                techVendor.get(),
+                defaultVendor,
                 true
             ),
             new ProductSeed(
@@ -386,7 +402,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 40,
                 "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80",
                 "mens-clothing",
-                fashionVendor.orElse(techVendor.get()),
+                fashionVendor.orElse(defaultVendor),
                 true
             ),
             new ProductSeed(
@@ -399,7 +415,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 35,
                 "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=800&q=80",
                 "home-kitchen",
-                homeVendor.orElse(techVendor.get()),
+                homeVendor.orElse(defaultVendor),
                 true
             ),
             new ProductSeed(
@@ -412,7 +428,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 45,
                 "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80",
                 "electronics-accessories",
-                techVendor.get(),
+                defaultVendor,
                 true
             ),
             new ProductSeed(
@@ -425,7 +441,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 50,
                 "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80",
                 "sports-fitness",
-                sportsVendor.orElse(techVendor.get()),
+                sportsVendor.orElse(defaultVendor),
                 false
             ),
             new ProductSeed(
@@ -438,7 +454,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 25,
                 "https://images.unsplash.com/photo-1547949003-9792a18a2601?auto=format&fit=crop&w=800&q=80",
                 "fashion-accessories",
-                fashionVendor.orElse(techVendor.get()),
+                fashionVendor.orElse(defaultVendor),
                 true
             ),
             new ProductSeed(
@@ -451,7 +467,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 40,
                 "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&w=800&q=80",
                 "cookware",
-                homeVendor.orElse(techVendor.get()),
+                homeVendor.orElse(defaultVendor),
                 false
             ),
             new ProductSeed(
@@ -464,7 +480,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 30,
                 "https://images.unsplash.com/photo-1527977966376-1c8408f9f108?auto=format&fit=crop&w=800&q=80",
                 "gadgets",
-                techVendor.get(),
+                defaultVendor,
                 false
             ),
             new ProductSeed(
@@ -477,7 +493,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 60,
                 "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?auto=format&fit=crop&w=800&q=80",
                 "fitness-equipment",
-                sportsVendor.orElse(techVendor.get()),
+                sportsVendor.orElse(defaultVendor),
                 false
             ),
             new ProductSeed(
@@ -490,7 +506,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 35,
                 "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=800&q=80",
                 "womens-clothing",
-                fashionVendor.orElse(techVendor.get()),
+                fashionVendor.orElse(defaultVendor),
                 false
             ),
             new ProductSeed(
@@ -503,7 +519,7 @@ public class DatabaseSeeder implements ApplicationRunner {
                 55,
                 "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80",
                 "dining",
-                homeVendor.orElse(techVendor.get()),
+                homeVendor.orElse(defaultVendor),
                 false
             )
         );
@@ -512,7 +528,13 @@ public class DatabaseSeeder implements ApplicationRunner {
             if (!productRepository.existsBySku(ps.sku())) {
                 Category cat = categoryRepository.findBySlug(ps.categorySlug())
                         .or(() -> categoryRepository.findBySlug("electronics"))
-                        .orElse(null);
+                        .or(() -> categoryRepository.findAll().stream().findFirst())
+                        .orElseGet(() -> categoryRepository.save(Category.builder()
+                                .name("General Electronics")
+                                .slug("electronics")
+                                .description("General category")
+                                .active(true)
+                                .build()));
 
                 if (cat == null) continue;
 
