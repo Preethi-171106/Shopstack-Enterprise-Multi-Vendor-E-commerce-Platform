@@ -718,6 +718,6 @@ The complete source code, documentation, and migration scripts are maintained in
 
 ## Author & Acknowledgments
 
-- **Developer**: Preethi S
+- **Developer**: Preethi R
 - **Program**: Infosys Springboard Internship 7.0
 - **Project**: ShopStack Enterprise Multi-Vendor E-Commerce Platform
