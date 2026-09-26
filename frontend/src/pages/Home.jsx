@@ -8,8 +8,9 @@ import {
   Store,
   Users,
 } from 'lucide-react';
-import categoryService from '../services/categoryService';
-import productService from '../services/productService';
+import categoryService, { normalizeCategory } from '../services/categoryService';
+import productService, { normalizeProduct } from '../services/productService';
+import { MOCK_CATEGORIES, MOCK_PRODUCTS } from '../data/mockData';
 import CategoryCard from '../components/common/CategoryCard';
 import ProductCard from '../components/common/ProductCard';
 import Button from '../components/common/Button';
@@ -18,8 +19,8 @@ import Loading from '../components/common/Loading';
 const Home = () => {
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('all');
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState(() => MOCK_CATEGORIES.map(normalizeCategory));
+  const [products, setProducts] = useState(() => MOCK_PRODUCTS.map(normalizeProduct));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,23 +34,26 @@ const Home = () => {
         productService.getProducts({ size: 20 }),
       ]);
 
-      if (catResult.status === 'fulfilled') {
-        setCategories(Array.isArray(catResult.value) ? catResult.value : []);
+      if (catResult.status === 'fulfilled' && Array.isArray(catResult.value) && catResult.value.length > 0) {
+        setCategories(catResult.value);
       } else {
-        console.error('[Home] categoryService.getCategories failed:', catResult.reason);
-        setCategories([]);
+        console.warn('[Home] Using standard category list');
+        setCategories(MOCK_CATEGORIES.map(normalizeCategory));
       }
 
       if (prodResult.status === 'fulfilled') {
         const prodData = prodResult.value;
-        // productService returns { content: [...], totalElements, ... }
         const items =
           (prodData && Array.isArray(prodData.content) ? prodData.content : null) ||
           (Array.isArray(prodData) ? prodData : []);
-        setProducts(items);
+        if (items.length > 0) {
+          setProducts(items);
+        } else {
+          setProducts(MOCK_PRODUCTS.map(normalizeProduct));
+        }
       } else {
-        console.error('[Home] productService.getProducts failed:', prodResult.reason);
-        setProducts([]);
+        console.warn('[Home] Using standard product catalog');
+        setProducts(MOCK_PRODUCTS.map(normalizeProduct));
       }
 
       setLoading(false);
@@ -61,16 +65,11 @@ const Home = () => {
   // Filter featured products based on active tab
   const featuredProducts = products.filter((prod) => {
     if (selectedTab === 'all') return true;
-    return prod.categoryId === selectedTab;
+    return String(prod.categoryId) === String(selectedTab) || prod.categorySlug === selectedTab;
   });
 
   const featuredCategories = categories.slice(0, 4);
-  const heroProduct = products[0] || {
-    id: 1,
-    name: 'Featured Marketplace Item',
-    price: 199.99,
-    images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'],
-  };
+  const heroProduct = products[0] || normalizeProduct(MOCK_PRODUCTS[0]);
 
   if (loading) {
     return (
@@ -170,12 +169,14 @@ const Home = () => {
                 <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl backdrop-blur-md bg-slate-900/90 border border-slate-700/80 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider block">
-                      Featured Marketplace Item
+                      Featured Product
                     </span>
                     <h4 className="text-sm font-bold text-white truncate max-w-[200px]">
                       {heroProduct.name}
                     </h4>
-                    <span className="text-xs font-bold text-emerald-400">${heroProduct.price?.toFixed(2)}</span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      ${Number(heroProduct.price || 0).toFixed(2)}
+                    </span>
                   </div>
                   <Link
                     to={`/products/${heroProduct.id}`}
